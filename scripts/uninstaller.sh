@@ -11,7 +11,6 @@
 umask 022
 
 OUTFD=$2
-APK="$3"
 COMMONDIR=$INSTALLER/assets
 CHROMEDIR=$INSTALLER/assets/chromeos
 
@@ -40,12 +39,6 @@ is_mounted /data || mount /data || abort "! Unable to mount /data, please uninst
 mount_partitions
 check_data
 $DATA_DE || abort "! Cannot access /data, please uninstall with the Magisk app"
-if ! $BOOTMODE; then
-  # Mounting stuffs in recovery (best effort)
-  mount_name metadata /metadata
-  mount_name "cache cac" /cache
-  mount_name persist /persist
-fi
 get_flags
 find_boot_image
 
@@ -55,15 +48,14 @@ ui_print "- Target image: $BOOTIMAGE"
 # Detect version and architecture
 api_level_arch_detect
 
-ui_print "- Device platform: $ARCH"
+ui_print "- Device platform: $ABI"
 
-BINDIR=$INSTALLER/lib/$ARCH32
-[ ! -d "$BINDIR" ] && BINDIR=$INSTALLER/lib/armeabi-v7a
+BINDIR=$INSTALLER/lib/$ABI
 cd $BINDIR
 for file in lib*.so; do mv "$file" "${file:3:${#file}-6}"; done
 cd /
-chmod -R 755 $CHROMEDIR $BINDIR
 cp -af $CHROMEDIR/. $BINDIR/chromeos
+chmod -R 755 $BINDIR
 
 ############
 # Uninstall
@@ -111,7 +103,12 @@ case $((STATUS & 3)) in
   1 )  # Magisk patched
     ui_print "- Magisk patched image detected"
     # Find SHA1 of stock boot image
-    SHA1=$(./magiskboot cpio ramdisk.cpio sha1 2>/dev/null)
+    ./magiskboot cpio ramdisk.cpio "extract .backup/.magisk config.orig"
+    if [ -f config.orig ]; then
+      chmod 0644 config.orig
+      SHA1=$(grep_prop SHA1 config.orig)
+      rm config.orig
+    fi
     BACKUPDIR=/data/magisk_backup_$SHA1
     if [ -d $BACKUPDIR ]; then
       ui_print "- Restoring stock boot image"
@@ -144,12 +141,17 @@ case $((STATUS & 3)) in
     ;;
 esac
 
+if $BOOTMODE; then
+  ui_print "- Removing modules"
+  magisk --remove-modules -n
+fi
+
 ui_print "- Removing Magisk files"
 rm -rf \
 /cache/*magisk* /cache/unblock /data/*magisk* /data/cache/*magisk* /data/property/*magisk* \
 /data/Magisk.apk /data/busybox /data/custom_ramdisk_patch.sh /data/adb/*magisk* \
 /data/adb/post-fs-data.d /data/adb/service.d /data/adb/modules* \
-/data/unencrypted/magisk /metadata/magisk /persist/magisk /mnt/vendor/persist/magisk
+/data/unencrypted/magisk /metadata/magisk /metadata/watchdog/magisk /persist/magisk /mnt/vendor/persist/magisk
 
 ADDOND=/system/addon.d/99-magisk.sh
 if [ -f $ADDOND ]; then
