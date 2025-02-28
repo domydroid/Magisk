@@ -2,13 +2,8 @@ plugins {
     id("com.android.library")
 }
 
-android {
-    defaultConfig {
-        vectorDrawables.useSupportLibrary = true
-        consumerProguardFiles("proguard-rules.pro")
-    }
-}
+setupCommon()
 
-dependencies {
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+android {
+    namespace = "com.topjohnwu.shared"
 }
